@@ -1,8 +1,9 @@
 # depslib dependency file v1.0
-1496058924 source:c:\users\jorge\documents\codeprojects\pcvs\sequencial.c
+1497626257 source:c:\users\jorge\documents\codeprojects\pcvs\sequencial.c
 	<stdio.h>
 	<stdlib.h>
 	<math.h>
+	<string.h>
 	<float.h>
 	<time.h>
 

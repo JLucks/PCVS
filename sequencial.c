@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include <float.h>
 #include <time.h>
 
@@ -10,8 +11,8 @@
 
 typedef struct _city_coord_{
     int nome;
-    int x;
-    int y;
+    float x;
+    float y;
 }Cidade;
 
 void lerCidades(char *url, Cidade S[], int tam);
@@ -22,7 +23,7 @@ void imprimirMatrizDistanciaCidades(float **D, int tam);
 void salvarCaminho(int *caminhoAtual, int *caminhoFinal, int tam);
 void branchAndBound(float **adj, float curr_bound, float curr_weight,int level, int *curr_path, int tam, float *final_res, int *visited, int *path);
 void PCV(float **adj, int tam, int ind, float bound, float *boundTemp, int *caminho);
-void imprimirResultPCV(Cidade S[], int *caminhoFinal, int tam, float bound);
+void imprimirResultPCV(Cidade S[], int *caminhoFinal, int tam, float bound, float tempo);
 float newBound(float **M, int num);
 
 int main(int argc, char *argv[]){
@@ -56,7 +57,7 @@ int main(int argc, char *argv[]){
 	matrizDistanciaCidades(D,S,tam);
 	imprimirMatrizDistanciaCidades(D,tam);
     bound = newBound(D,tam);
-    float tempbound;
+    float tempbound = 0;
     int *tempcaminho;
     tempcaminho = (int *)malloc(sizeof(int)*(tam+1));
     if(tempcaminho == NULL){
@@ -72,8 +73,7 @@ int main(int argc, char *argv[]){
             salvarCaminho(tempcaminho,caminho,tam);
         }
     }
-    printf("Tempo:%f\n",(clock() - tempo) / (double)CLOCKS_PER_SEC);
-    imprimirResultPCV(S,caminho,tam,bound);
+    imprimirResultPCV(S,caminho,tam,bound,(clock() - tempo) / (double)CLOCKS_PER_SEC);
     free(tempcaminho);
     free(caminho);
     for(i = 0; i < tam; i++)
@@ -86,11 +86,21 @@ void lerCidades(char *url, Cidade S[], int tam){
     FILE *arq;
     int i = 0;
 	arq = fopen(url, "r");
-	if(arq == NULL)
+	if(arq == NULL){
 			printf("Erro, nao foi possivel abrir o arquivo\n");
+			exit(1);
+	}
 	else{
-		while( (fscanf(arq,"%d %d\n", &S[i].x, &S[i].y))!=EOF ){
-            S[i].nome = i;
+        char *Line;
+        Line = (char*)malloc(sizeof(char)*100);
+        while( (fgets(Line,sizeof(char)*100,arq))!=NULL ){
+            i++;
+            if(i == 6)
+                break;
+		}
+		free(Line);
+        i = 0;
+		while( (fscanf(arq,"%d %f %f\n",&S[i].nome,&S[i].x, &S[i].y))!=EOF ){
             i++;
             if(i == tam)
                 break;
@@ -105,12 +115,12 @@ void imprimirCidades(Cidade S[], int tam){
     printf("Cidades:\n");
     printf("-------------------\n");
     for(i=0;i < tam;i++)
-        printf("%d:(%d,%d)\n",S[i].nome,S[i].x,S[i].y);
+        printf("%d:(%f,%f)\n",S[i].nome,S[i].x,S[i].y);
     printf("-------------------\n\n");
 }
 
 float distanciaCidades(Cidade S[], int a, int b){
-    return sqrt((pow(S[b].x - S[a].x, 2))+(pow(S[b].y - S[a].y, 2)));
+    return (sqrt((pow(S[b].x - S[a].x, 2))+(pow(S[b].y - S[a].y, 2))));
 }
 
 void matrizDistanciaCidades(float **D, Cidade S[], int tam){
@@ -166,10 +176,11 @@ float secondMin(float **adj, int i, int tam){
 }
 
 void branchAndBound(float **adj, float curr_bound, float curr_weight,int level, int *curr_path, int tam, float *final_res, int *visited, int *path){
+    int i;
     if (level==tam){
         if (adj[curr_path[level-1]][curr_path[0]] != 0){
             float curr_res = curr_weight + adj[curr_path[level-1]][curr_path[0]];
-            if (curr_res < *final_res){
+            if (curr_res <= *final_res){
                 curr_path[level] = curr_path[0];
                 salvarCaminho(curr_path,path,tam);
                 *final_res = curr_res;
@@ -177,7 +188,6 @@ void branchAndBound(float **adj, float curr_bound, float curr_weight,int level, 
         }
         return;
     }
-    int i;
     for (i=0; i<tam; i++){
         if (adj[curr_path[level-1]][i] != 0 && visited[i] == false){
             int temp = curr_bound;
@@ -228,16 +238,56 @@ void PCV(float **adj, int tam, int ind, float bound, float *boundTemp, int *cami
     free(visited);
 }
 
-void imprimirResultPCV(Cidade S[], int *caminhoFinal, int tam, float bound){
+char *replace_str(char *str, char *orig, char *rep)
+{
+  static char buffer[4096];
+  char *p;
+
+  if(!(p = strstr(str, orig)))  // Is 'orig' even in 'str'?
+    return str;
+
+  strncpy(buffer, str, p-str); // Copy characters from 'str' start to 'orig' st$
+  buffer[p-str] = '\0';
+
+  sprintf(buffer+(p-str), "%s%s", rep, p+strlen(orig));
+
+  return buffer;
+}
+
+void imprimirResultPCV(Cidade S[], int *caminhoFinal, int tam, float bound, float tempo){
     int i;
-    printf("\n-------------------\n");
-    printf("Custo Minimo : %f\n", bound);
-    printf("Caminho: \n");
-    printf("Cidades:\n");
-    printf("-------------------\n");
+    FILE *arq;
+    char *url;
+    char str[10];
+    sprintf(str,"%d",tam);
+    url = (char*)malloc(sizeof(char)*100);
+    strcpy(url, "pcvseq-");
+    strcat(url, str);
+    strcat(url, "cidades-");
+    strcat(url, __DATE__);
+    strcat(url, "-");
+    strcat(url, replace_str(replace_str(__TIME__,":","-"),":","-"));
+    strcat(url, ".txt");
+    printf("Arquivo de Saida:%s\n",url);
+    arq = fopen(url,"r");
+    if(arq == NULL)
+        arq = fopen(url,"wt");
+    else
+        arq = fopen(url,"a");
+    if(arq == NULL){
+        printf("Erro, nao foi possivel criar o arquivo\n");
+        exit(1);
+    }
+    fprintf(arq,"Tempo:%f\n",tempo);
+    fprintf(arq,"\n-------------------\n");
+    fprintf(arq,"Custo Minimo : %f\n", bound);
+    fprintf(arq,"Caminho: \n");
+    fprintf(arq,"Cidades:\n");
+    fprintf(arq,"-------------------\n");
     for (i=0; i<=tam; i++)
-        printf("%d:(%d,%d)\n", S[caminhoFinal[i]].nome, S[caminhoFinal[i]].x, S[caminhoFinal[i]].y);
-    printf("-------------------\n\n");
+        fprintf(arq,"%d:(%f,%f)\n", S[caminhoFinal[i]].nome,S[caminhoFinal[i]].x,S[caminhoFinal[i]].y);
+    fprintf(arq,"-------------------\n\n");
+    fclose(arq);
 }
 
 int checkFim(int V[],int num){
